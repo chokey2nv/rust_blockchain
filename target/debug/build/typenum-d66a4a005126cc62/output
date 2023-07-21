@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build/main.rs
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/Users/ceejay/Documents/Projects/Versus/ultra-blockchain/target/debug/build/typenum-d66a4a005126cc62/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/Users/ceejay/Documents/Projects/Versus/ultra-blockchain/target/debug/build/typenum-d66a4a005126cc62/out/op.rs
