@@ -1,16 +1,10 @@
 use super::blockchain::{
-    self,
     block::Block,
     chain::{Blockchain, NodePeer, Transaction},
 };
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use serde_json::{from_value, json, Map, Value};
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use serde_json::{from_value, json, to_value, Map, Value};
+use std::{error::Error, sync::Mutex};
 
 // Define the Transaction, NodePeer, and Blockchain structs as before
 
@@ -26,6 +20,67 @@ impl Application {
         Ok(Application {
             blockchain: Mutex::new(blockchain),
         })
+    }
+
+    // Implementation of HandleMine
+    async fn handle_mine(blockchain: web::Data<Mutex<Blockchain>>) -> HttpResponse {
+        let mut blockchain = blockchain.lock().unwrap();
+        // Mine block
+        let success = blockchain.mine_block().expect("Failed to mine block");
+
+        // Define response default details
+        let mut mine_data = json!({
+            "message": "",
+            "chain_length": blockchain.chain.len(),
+            "transactions": Value::Null
+        });
+
+        // If mine is successful, add length of transactions in block and do consensus and broadcast
+        if success {
+            // app.blockchain.Consensus(); // Persist chain with max length
+            blockchain
+                .consensus()
+                .await
+                .expect("Failed to run consensus!");
+            // app.blockchain.AnnounceNewBlock(); // Broadcast new block
+
+            // Add message and transactions in mined block to response data
+            mine_data["message"] = "New block mined".into();
+
+            // Convert transactions to serde_json::Value
+            mine_data["transactions"] = to_value(
+                blockchain
+                    .chain
+                    .last()
+                    .expect("Failed to get last block of the chain")
+                    .transactions
+                    .clone(),
+            )
+            .expect("Failed to convert transactions to value");
+        } else {
+            mine_data["message"] = "No transaction to mine".into();
+        }
+
+        // Forward response data as JSON
+        HttpResponse::Ok().json(mine_data)
+    }
+    // Implementation of HandleVerifyAndAddBlock
+    async fn handle_verify_and_add_block(
+        blockchain: web::Data<Mutex<Blockchain>>,
+        block: web::Json<Block>,
+    ) -> HttpResponse {
+        // Extract the inner Block data from the web::Json wrapper
+        let block_data: Block = block.into_inner();
+
+        let mut blockchain = blockchain
+            .lock()
+            .expect("Unable to lock blockchain for update");
+        let result = blockchain.add_block(block_data);
+        if !result.is_ok() {
+            return HttpResponse::InternalServerError().body("Block not added");
+        }
+        // Return an HTTP response
+        HttpResponse::Created().body("Success")
     }
     // Endpoint /register_with handler function - registers node to list via synced node and syncs the calling node
     pub async fn handle_register_node_with(
@@ -87,7 +142,10 @@ impl Application {
 
             match Blockchain::create_chain_from_dump(chain, peers) {
                 Ok(_) => return HttpResponse::Ok().body("Registration successful"),
-                Err(message) => return HttpResponse::Conflict().body(message.to_string()),
+                Err(_) => {
+                    return HttpResponse::InternalServerError()
+                        .body("Failed to create blockchain from dump")
+                }
             };
         } else {
             let body = response.text().await.unwrap();
@@ -168,14 +226,18 @@ impl Application {
         let app = Application::new().expect("Failed to initialize application");
 
         cfg.app_data(app.blockchain)
-            .service(web::resource("/chains").route(web::post().to(Self::get_chain)))
+            .service(
+                web::resource("/add_block")
+                    .route(web::post().to(Self::handle_verify_and_add_block)),
+            )
+            .service(web::resource("/chains").route(web::get().to(Self::get_chain)))
             .service(
                 web::resource("/new_transaction")
                     .route(web::post().to(Self::handle_new_transaction)),
             )
             .service(
                 web::resource("/mempool")
-                    .route(web::post().to(Self::handle_get_pending_transactions)),
+                    .route(web::get().to(Self::handle_get_pending_transactions)),
             )
             .service(
                 web::resource("/register_with")
