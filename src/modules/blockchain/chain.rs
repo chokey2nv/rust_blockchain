@@ -17,7 +17,7 @@ pub struct Transaction {
 // NodePeer represents a peer node in the blockchain network.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodePeer {
-    node_address: String,
+    pub node_address: String,
 }
 
 // Blockchain represents the blockchain and related operations.
