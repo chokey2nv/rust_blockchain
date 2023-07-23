@@ -1,0 +1,12 @@
+<!-- templates/base.html -->
+<html>
+  <head>
+    <title>{{ title }}</title>
+  </head>
+  <body>
+    <div><a href="/">Home</a></div>
+    <center><h1>{{ title }}</h1></center>
+    <hr>
+    {% block content %}{% endblock %}
+  </body>
+</html>

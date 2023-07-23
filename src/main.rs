@@ -1,48 +1,16 @@
 mod modules;
 
-use crate::modules::app;
+use crate::modules::{app::start_node, client::start_client};
 
 // In your main.rs, you can now start the server as follows:
 #[tokio::main]
 async fn main() {
-    app::start_server().await
+    dotenv::dotenv().ok();
+    // Start both functions concurrently using tokio::spawn
+    start_client();
+    start_node();
+
+    // Wait for both servers to finish (not necessary in this example)
+    // You can remove this line if you don't want to wait for the servers to finish.
+    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 }
-/*
-#[tokio::main]
-async fn main() {
-    // Example usage of the blockchain in Rust:
-    let mut blockchain = Blockchain::new_blockchain().unwrap();
-
-    let transaction1 = Transaction {
-        author: "John".to_string(),
-        content: "Hello, World!".to_string(),
-        timestamp: SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64,
-    };
-    blockchain.add_new_transaction(transaction1);
-
-    let transaction2 = Transaction {
-        author: "Alice".to_string(),
-        content: "Hey there!".to_string(),
-        timestamp: SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64,
-    };
-    blockchain.add_new_transaction(transaction2);
-
-    blockchain.mine_block().unwrap();
-
-    // Call the announce_new_block() function using the await keyword
-    match blockchain.announce_new_block().await {
-        Ok(_) => println!("Block announcement successful!"),
-        Err(e) => println!("Failed to announce block: {:?}", e),
-    }
-
-    // let result = blockchain.announce_new_block();
-
-    println!("{:#?}", blockchain);
-}
-*/

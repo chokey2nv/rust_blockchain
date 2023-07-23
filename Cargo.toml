@@ -9,9 +9,12 @@ path = "src/main.rs"
 
 [dependencies]
 actix-web = "4.3.1"
+askama = "0.12.0"
+askama_actix = "0.14.0"
 cargo-watch = "8.4.0"
 chrono = "0.4.26"
 crypto-hash = "0.3.4"
+dotenv = "0.15.0"
 reqwest = "0.11.18"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"

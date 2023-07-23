@@ -4,11 +4,8 @@ use super::blockchain::{
 };
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde_json::{from_value, json, to_value, Map, Value};
-use std::{error::Error, sync::Mutex};
+use std::{env, error::Error, sync::Mutex};
 
-// Define the Transaction, NodePeer, and Blockchain structs as before
-
-// Application represents the blockchain application.
 pub struct Application {
     pub blockchain: Mutex<Blockchain>,
 }
@@ -21,9 +18,8 @@ impl Application {
             blockchain: Mutex::new(blockchain),
         })
     }
-
     // Implementation of HandleMine
-    async fn handle_mine(blockchain: web::Data<Mutex<Blockchain>>) -> HttpResponse {
+    async fn handle_mine(blockchain: web::Data<Mutex<Blockchain>>) -> impl Responder {
         let mut blockchain = blockchain.lock().unwrap();
         // Mine block
         let success = blockchain.mine_block().expect("Failed to mine block");
@@ -86,7 +82,7 @@ impl Application {
     pub async fn handle_register_node_with(
         node: web::Json<NodePeer>,
         req: HttpRequest,
-    ) -> HttpResponse {
+    ) -> impl Responder {
         let node = node.into_inner();
 
         // handle empty node address
@@ -157,7 +153,7 @@ impl Application {
     pub async fn handle_register_node(
         blockchain: web::Data<Mutex<Blockchain>>,
         req: web::Json<NodePeer>,
-    ) -> HttpResponse {
+    ) -> impl Responder {
         let node = req.into_inner();
 
         // Check and prevent empty node_address
@@ -226,6 +222,7 @@ impl Application {
         let app = Application::new().expect("Failed to initialize application");
 
         cfg.app_data(app.blockchain)
+            .service(web::resource("/mine").route(web::get().to(Self::handle_mine)))
             .service(
                 web::resource("/add_block")
                     .route(web::post().to(Self::handle_verify_and_add_block)),
@@ -250,7 +247,7 @@ impl Application {
 }
 
 // Define a function to start the Actix-web server
-pub async fn start_server() {
+pub async fn start_node() {
     match HttpServer::new(move || App::new().configure(Application::config)).bind("127.0.0.1:8080")
     {
         Ok(server) => {
