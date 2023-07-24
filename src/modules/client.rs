@@ -1,10 +1,14 @@
-use std::error::Error;
+use std::{error::Error, io, sync::Mutex, vec};
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{dev::Server, web, App, HttpResponse, HttpServer, Responder};
 use askama::Template;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Article {
     pub author: String,
-    pub timestamp: String,
+    pub timestamp: i64,
     pub content: String,
 }
 // Define the base template
@@ -35,32 +39,88 @@ impl Client {
     // Create a new blockchain application.
     pub fn new() -> Result<Client, Box<dyn Error>> {
         Ok(Client {
-            node: "".to_owned(),
+            node: "http://localhost:8080".to_owned(),
         })
     }
+    fn get_node(&self) -> &str {
+        &self.node
+    }
+    async fn handle_submit(
+        form: web::Form<PostObject>,
+        client: web::Data<Mutex<Client>>,
+    ) -> HttpResponse {
+        // Access the form values
+        let author = &form.author;
+        let content = &form.content;
 
-    async fn handle_submit() -> impl Responder {
-        // Extract form values from the PostObject
-        HttpResponse::Ok().body("success")
+        // Define node public address and path (method)
+        let new_tx_address = client.lock().unwrap().get_node().to_string() + "/new_transaction"; // Replace with the actual node address
+
+        // Serialize the form data to JSON
+        let payload = serde_json::to_string(&json!({"author": author, "content": content}))
+            .expect("Failed to serialize form data to JSON");
+
+        // Post new transaction to node
+        match reqwest::Client::new()
+            .post(new_tx_address)
+            .header("Content-Type", "application/json")
+            .body(payload)
+            .send()
+            .await
+        {
+            Ok(_) => {
+                // Redirect to home page
+                HttpResponse::SeeOther()
+                    .append_header(("Location", "/"))
+                    .finish()
+            }
+            Err(err) => {
+                eprintln!("Error posting new transaction: {}", err);
+                HttpResponse::InternalServerError().finish()
+            }
+        }
     }
     // Handler function to render the index template
-    async fn handle_index() -> impl Responder {
-        let node_address = "http://example.com";
+    pub async fn handle_index() -> impl Responder {
+        // let client: web::Data<Mutex<Client>>
+        if true {
+            return HttpResponse::Ok().body("hello");
+        }
+        // let client = client.lock().unwrap();
+        let node_address: &str = ""; //client.get_node();
+                                     // let get_chain_url = node_address.to_string() + "/chains";
         let title = "My Blog";
-        let articles = vec![
-            Article {
-                author: "John".to_string(),
-                timestamp: "2023-07-20".to_string(),
-                content: "Hello World!".to_string(),
-            },
-            Article {
-                author: "Jane".to_string(),
-                timestamp: "2023-07-21".to_string(),
-                content: "Rust is awesome!".to_string(),
-            },
-        ];
-
+        /* let response = reqwest::Client::new()
+            .get(get_chain_url)
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+            .unwrap();
+        if !response.status().is_success() {
+            return HttpResponse::InternalServerError().body("Failed to get chain data");
+        }
+        let body = json!(response.text().await.unwrap());
+        let articles = match &body["chain"]["unconfirmed_transactions"] {
+            Value::Array(array) => array
+                .iter()
+                .filter_map(|value| {
+                    serde_json::from_value::<Article>(value.clone())
+                        .map(|mut article| {
+                            article.timestamp = chrono::Utc::now().timestamp();
+                            article
+                        })
+                        .ok()
+                })
+                .collect(),
+            _ => Vec::new(),
+        }; */
         // Create an instance of the IndexTemplate with the data
+        let articles = vec![Article {
+            author: "Agu".to_string(),
+            content: "Body".to_string(),
+            timestamp: chrono::Utc::now().timestamp(),
+        }];
+
         let index_template = IndexTemplate {
             node_address,
             articles,
@@ -74,21 +134,17 @@ impl Client {
             .content_type("text/html; charset=utf-8")
             .body(html)
     }
-    fn config(cfg: &mut web::ServiceConfig) {
-        cfg.service(web::resource("/").route(web::get().to(Self::handle_index)))
-            .service(web::resource("/submit").route(web::post().to(Self::handle_submit)));
+    pub fn config(cfg: &mut web::ServiceConfig) {
+        let client = Client::new();
+        cfg.app_data(client)
+            .route("/", web::get().to(Client::handle_index))
+            .route("/submit", web::post().to(Client::handle_submit));
     }
 }
-pub async fn start_client() {
-    match HttpServer::new(move || App::new().configure(Client::config)).bind("127.0.0.1:8080") {
-        Ok(server) => {
-            println!("Server started at: http://127.0.0.1:8000");
-            if let Err(e) = server.run().await {
-                eprintln!("Error running server: {}", e);
-            }
-        }
-        Err(e) => {
-            eprintln!("Error binding to address: {}", e);
-        }
-    }
+pub async fn start_client() -> io::Result<()> {
+    HttpServer::new(move || App::new().configure(Client::config))
+        .bind("127.0.0.1:8000")
+        .unwrap()
+        .run()
+        .await
 }

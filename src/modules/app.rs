@@ -2,9 +2,9 @@ use super::blockchain::{
     block::Block,
     chain::{Blockchain, NodePeer, Transaction},
 };
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{dev::Server, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde_json::{from_value, json, to_value, Map, Value};
-use std::{env, error::Error, sync::Mutex};
+use std::{error::Error, io, sync::Mutex};
 
 pub struct Application {
     pub blockchain: Mutex<Blockchain>,
@@ -177,7 +177,7 @@ impl Application {
     pub async fn handle_get_pending_transactions(
         blockchain: web::Data<Mutex<Blockchain>>,
     ) -> impl Responder {
-        let mut blockchain = blockchain
+        let blockchain = blockchain
             .lock()
             .expect("Unable to block blockchain for update");
 
@@ -247,17 +247,9 @@ impl Application {
 }
 
 // Define a function to start the Actix-web server
-pub async fn start_node() {
-    match HttpServer::new(move || App::new().configure(Application::config)).bind("127.0.0.1:8080")
-    {
-        Ok(server) => {
-            println!("Server started at: http://127.0.0.1:8080");
-            if let Err(e) = server.run().await {
-                eprintln!("Error running server: {}", e);
-            }
-        }
-        Err(e) => {
-            eprintln!("Error binding to address: {}", e);
-        }
-    }
+pub async fn start_node() -> Server {
+    HttpServer::new(move || App::new().configure(Application::config))
+        .bind("127.0.0.1:8080")
+        .unwrap()
+        .run()
 }

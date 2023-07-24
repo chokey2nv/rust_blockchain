@@ -103,7 +103,7 @@ impl Blockchain {
 
     // Create the genesis block of the blockchain.
     pub fn create_genesis_block(&mut self) -> Result<(), Box<dyn Error>> {
-        let mut genesis_block = Block {
+        let genesis_block = Block {
             index: 0,
             transactions: Vec::new(),
             timestamp: 0,
